@@ -9,11 +9,11 @@
       href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
       rel="stylesheet"
     />
-    <!-- Crypto‑JS for AES decryption -->
+    <!-- Crypto‑JS for PBKDF2 + AES‑CBC decryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js" defer></script>
 
     <style>
-      /* Fresh, nature‑inspired background */
+      /* Fresh, nature-inspired background */
       body {
         background: linear-gradient(135deg, #e6fff2 0%, #f4fff9 100%);
       }
@@ -30,7 +30,7 @@
         top: 0;
         width: 50px;
         height: 80px;
-        background: #34d399; /* emerald‑400 */
+        background: #34d399; /* emerald-400 */
         border-radius: 50px 50px 0 0;
       }
       .heart::before {
@@ -50,7 +50,7 @@
     <div class="heart mb-6 animate-pulse"></div>
 
     <h1 class="text-4xl font-bold text-green-600 mb-8 tracking-wide">
-      Just Married
+      Casa de piatra!
     </h1>
 
     <!-- Input + button -->
@@ -76,8 +76,14 @@
     <!-- App logic isolated in an IIFE to avoid polluting the global namespace -->
     <script defer>
       (() => {
-        // AES‑encrypted payload of "https://google.com" with passphrase "test123"
-        const ENCRYPTED_URL = "U2FsdGVkX197SoZD65pg4Xkzlmj8AAVOlNLZloPwhrHWbvsJYYuzRK39dhy7VP/d9Nt4yMgcBPrm3fyLW94wbA==";
+        /**
+         * Ciphertext generated with:
+         *   echo -n "https://google.com" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -a -pass pass:"test123"
+         */
+        const ENCRYPTED_URL =
+          "U2FsdGVkX187GSs2w6ret6lwTh3ZbxnFSjH/GfLYPm3Z1GCYPCCG0Z0LiTaAfmBogtRuufYD8/0oq946302UpA==";
+
+        const ITERATIONS = 100000; // Must match the -iter value used with openssl
 
         const unlockBtn = document.getElementById("unlockBtn");
         const passInput = document.getElementById("passphrase");
@@ -91,10 +97,7 @@
           }
 
           try {
-            // Attempt AES decryption
-            const bytes = CryptoJS.AES.decrypt(ENCRYPTED_URL, passphrase);
-            const decryptedUrl = bytes.toString(CryptoJS.enc.Utf8);
-
+            const decryptedUrl = opensslDecrypt(ENCRYPTED_URL, passphrase, ITERATIONS);
             if (!decryptedUrl) throw new Error("Invalid passphrase");
 
             // Display the URL as a tappable link
@@ -111,6 +114,43 @@
             alert("Incorrect passphrase. Please try again.");
           }
         });
+
+        /**
+         * Decrypt OpenSSL-compatible AES‑256‑CBC string that was encrypted
+         * with “openssl enc -pbkdf2 … -salt -a”.
+         */
+        function opensslDecrypt(cipherB64, passphrase, iterations) {
+          // 1. Base64‑decode → binary
+          const cipherBytes = Uint8Array.from(atob(cipherB64), (c) => c.charCodeAt(0));
+
+          // 2. Verify and extract salt
+          const isSalted =
+            String.fromCharCode.apply(null, cipherBytes.slice(0, 8)) ===
+            "Salted__";
+          if (!isSalted) throw new Error("Unsupported ciphertext format");
+          const saltBytes = cipherBytes.slice(8, 16); // 8‑byte salt
+          const dataBytes = cipherBytes.slice(16); // encrypted payload
+
+          const saltWA = CryptoJS.lib.WordArray.create(saltBytes);
+
+          // 3. Derive (key || iv) with PBKDF2‑HMAC‑SHA256
+          const keyIv = CryptoJS.PBKDF2(passphrase, saltWA, {
+            hasher: CryptoJS.algo.SHA256,
+            keySize: 48 / 4, // 48 bytes → 12 words (Big‑endian 32‑bit words)
+            iterations,
+          });
+          const key = CryptoJS.lib.WordArray.create(keyIv.words.slice(0, 8)); // 32 bytes
+          const iv = CryptoJS.lib.WordArray.create(keyIv.words.slice(8, 12)); // 16 bytes
+
+          // 4. Decrypt
+          const encryptedWA = CryptoJS.lib.WordArray.create(dataBytes);
+          const decryptedWA = CryptoJS.AES.decrypt(
+            { ciphertext: encryptedWA },
+            key,
+            { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+          );
+          return decryptedWA.toString(CryptoJS.enc.Utf8);
+        }
       })();
     </script>
   </body>
