@@ -53,15 +53,26 @@
       Casa de piatra, Alexandra si George!
     </h1>
 
-    <!-- Input + button -->
+    <!-- Input + buttons -->
     <div class="w-full max-w-xs">
-      <input
-        id="passphrase"
-        type="password"
-        placeholder="Enter passphrase"
-        autocomplete="off"
-        class="mb-4 w-full px-4 py-3 rounded-lg border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-400"
-      />
+      <div class="relative mb-4">
+        <input
+          id="passphrase"
+          type="password"
+          placeholder="Enter passphrase"
+          autocomplete="off"
+          class="w-full px-4 py-3 pr-12 rounded-lg border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-400"
+        />
+        <button
+          id="toggleVisibility"
+          type="button"
+          aria-label="Show/Hide passphrase"
+          class="absolute inset-y-0 right-3 flex items-center text-green-500 hover:text-green-700 focus:outline-none"
+        >
+          👁️
+        </button>
+      </div>
+
       <button
         id="unlockBtn"
         class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 rounded-lg flex items-center justify-center gap-2 transition"
@@ -81,12 +92,14 @@
          * Ciphertext generated with:
          *   echo -n "https://google.com" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -a -pass pass:"test123"
          */
-        const ENCRYPTED_URL = "U2FsdGVkX18vwmgzlOn+3PNzkdSlgM3Yyw2Dr7ctwVPdPWbeJMPyhUdO2Lg5sWFYuAflbaDr1CVgo8shCca0Qg==";
+        const ENCRYPTED_URL =
+          "U2FsdGVkX18vwmgzlOn+3PNzkdSlgM3Yyw2Dr7ctwVPdPWbeJMPyhUdO2Lg5sWFYuAflbaDr1CVgo8shCca0Qg==";
         const ITERATIONS = 100000; // Must match the -iter value used with openssl
 
         const unlockBtn = document.getElementById("unlockBtn");
         const passInput = document.getElementById("passphrase");
         const linkContainer = document.getElementById("linkContainer");
+        const toggleBtn = document.getElementById("toggleVisibility");
 
         const tryUnlock = () => {
           const passphrase = passInput.value.trim();
@@ -103,7 +116,6 @@
             );
             if (!decryptedUrl) throw new Error("Invalid passphrase");
 
-            // Display the URL as a tappable link
             linkContainer.innerHTML = `
               <a
                 href="${decryptedUrl}"
@@ -125,34 +137,34 @@
           }
         });
 
+        toggleBtn.addEventListener("click", () => {
+          const isHidden = passInput.type === "password";
+          passInput.type = isHidden ? "text" : "password";
+          toggleBtn.textContent = isHidden ? "🙈" : "👁️";
+        });
+
         /**
          * Decrypt OpenSSL-compatible AES-256-CBC string that was encrypted
          * with “openssl enc -pbkdf2 … -salt -a”.
          */
         function opensslDecrypt(cipherB64, passphrase, iterations) {
-          // 1. Base64-decode → binary
           const cipherBytes = Uint8Array.from(atob(cipherB64), (c) => c.charCodeAt(0));
-
-          // 2. Verify and extract salt
           const isSalted =
             String.fromCharCode.apply(null, cipherBytes.slice(0, 8)) ===
             "Salted__";
           if (!isSalted) throw new Error("Unsupported ciphertext format");
-          const saltBytes = cipherBytes.slice(8, 16); // 8-byte salt
-          const dataBytes = cipherBytes.slice(16); // encrypted payload
+          const saltBytes = cipherBytes.slice(8, 16);
+          const dataBytes = cipherBytes.slice(16);
 
           const saltWA = CryptoJS.lib.WordArray.create(saltBytes);
-
-          // 3. Derive (key || iv) with PBKDF2-HMAC-SHA256
           const keyIv = CryptoJS.PBKDF2(passphrase, saltWA, {
             hasher: CryptoJS.algo.SHA256,
-            keySize: 48 / 4, // 48 bytes → 12 words (Big-endian 32-bit words)
+            keySize: 48 / 4,
             iterations,
           });
-          const key = CryptoJS.lib.WordArray.create(keyIv.words.slice(0, 8)); // 32 bytes
-          const iv = CryptoJS.lib.WordArray.create(keyIv.words.slice(8, 12)); // 16 bytes
+          const key = CryptoJS.lib.WordArray.create(keyIv.words.slice(0, 8));
+          const iv = CryptoJS.lib.WordArray.create(keyIv.words.slice(8, 12));
 
-          // 4. Decrypt
           const encryptedWA = CryptoJS.lib.WordArray.create(dataBytes);
           const decryptedWA = CryptoJS.AES.decrypt(
             { ciphertext: encryptedWA },
