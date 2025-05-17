@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Just Married Unlock</title>
+    <!-- Tailwind CSS CDN for quick styling -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <!-- Crypto‑JS for AES decryption -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js" defer></script>
+
+    <style>
+      /* Fresh, nature‑inspired background */
+      body {
+        background: linear-gradient(135deg, #e6fff2 0%, #f4fff9 100%);
+      }
+      /* Heart shape (pure CSS) */
+      .heart {
+        position: relative;
+        width: 50px;
+        height: 45px;
+      }
+      .heart::before,
+      .heart::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        width: 50px;
+        height: 80px;
+        background: #34d399; /* emerald‑400 */
+        border-radius: 50px 50px 0 0;
+      }
+      .heart::before {
+        left: 50px;
+        transform: rotate(-45deg);
+        transform-origin: 0 100%;
+      }
+      .heart::after {
+        left: 0;
+        transform: rotate(45deg);
+        transform-origin: 100% 100%;
+      }
+    </style>
+  </head>
+  <body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <!-- Heart icon at the top -->
+    <div class="heart mb-6 animate-pulse"></div>
+
+    <h1 class="text-4xl font-bold text-green-600 mb-8 tracking-wide">
+      Just Married
+    </h1>
+
+    <!-- Input + button -->
+    <div class="w-full max-w-xs">
+      <input
+        id="passphrase"
+        type="password"
+        placeholder="Enter passphrase"
+        autocomplete="off"
+        class="mb-4 w-full px-4 py-3 rounded-lg border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-400"
+      />
+      <button
+        id="unlockBtn"
+        class="w-full bg-green-500 hover:bg-green-600 text-white font-semibold px-4 py-3 rounded-lg transition"
+      >
+        Unlock
+      </button>
+    </div>
+
+    <!-- Where the decrypted URL will appear -->
+    <div id="linkContainer" class="mt-6 text-center"></div>
+
+    <!-- App logic isolated in an IIFE to avoid polluting the global namespace -->
+    <script defer>
+      (() => {
+        // AES‑encrypted payload of "https://google.com" with passphrase "test123"
+        const ENCRYPTED_URL = "U2FsdGVkX197SoZD65pg4Xkzlmj8AAVOlNLZloPwhrHWbvsJYYuzRK39dhy7VP/d9Nt4yMgcBPrm3fyLW94wbA==";
+
+        const unlockBtn = document.getElementById("unlockBtn");
+        const passInput = document.getElementById("passphrase");
+        const linkContainer = document.getElementById("linkContainer");
+
+        unlockBtn.addEventListener("click", () => {
+          const passphrase = passInput.value.trim();
+          if (!passphrase) {
+            alert("Please enter the passphrase first.");
+            return;
+          }
+
+          try {
+            // Attempt AES decryption
+            const bytes = CryptoJS.AES.decrypt(ENCRYPTED_URL, passphrase);
+            const decryptedUrl = bytes.toString(CryptoJS.enc.Utf8);
+
+            if (!decryptedUrl) throw new Error("Invalid passphrase");
+
+            // Display the URL as a tappable link
+            linkContainer.innerHTML = `
+              <a
+                href="${decryptedUrl}"
+                class="text-green-600 underline text-lg break-words"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ${decryptedUrl}
+              </a>`;
+          } catch (err) {
+            alert("Incorrect passphrase. Please try again.");
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>
