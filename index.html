@@ -3,12 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Casă de piatră!</title>
+    <title>Casa de piatra!</title>
     <!-- Tailwind CSS CDN for quick styling -->
-    <link
-      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
-      rel="stylesheet"
-    />
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
     <!-- Crypto-JS for PBKDF2 + AES-CBC decryption -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js" defer></script>
 
@@ -50,7 +47,7 @@
     <div class="heart mb-6 animate-pulse"></div>
 
     <h1 class="text-3xl sm:text-4xl font-bold text-green-600 mb-8 tracking-wide text-center">
-      Casă de piatră, Alexandra si George!
+      Casa de piatra, Alexandra si George!
     </h1>
 
     <!-- Input + buttons -->
@@ -82,19 +79,18 @@
       </button>
     </div>
 
-    <!-- Where the decrypted URL will appear -->
+    <!-- Where the decrypted URL will appear (fallback) -->
     <div id="linkContainer" class="mt-6 text-center"></div>
 
-    <!-- App logic isolated in an IIFE to avoid polluting the global namespace -->
     <script defer>
       (() => {
         /**
          * Ciphertext generated with:
-         *   echo -n "https://google.com" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -a -pass pass:"test123"
+         *   echo -n "<your-url>" | openssl enc -aes-256-cbc -pbkdf2 -iter 100000 -salt -a -pass pass:"test123"
          */
         const ENCRYPTED_URL =
           "U2FsdGVkX18vwmgzlOn+3PNzkdSlgM3Yyw2Dr7ctwVPdPWbeJMPyhUdO2Lg5sWFYuAflbaDr1CVgo8shCca0Qg==";
-        const ITERATIONS = 100000; // Must match the -iter value used with openssl
+        const ITERATIONS = 100000; // Must match -iter
 
         const unlockBtn = document.getElementById("unlockBtn");
         const passInput = document.getElementById("passphrase");
@@ -109,22 +105,17 @@
           }
 
           try {
-            const decryptedUrl = opensslDecrypt(
-              ENCRYPTED_URL,
-              passphrase,
-              ITERATIONS
-            );
-            if (!decryptedUrl) throw new Error("Invalid passphrase");
+            const url = opensslDecrypt(ENCRYPTED_URL, passphrase, ITERATIONS);
+            if (!url) throw new Error("Invalid passphrase");
 
+            // Optional: show the link (useful if redirect is blocked)
             linkContainer.innerHTML = `
-              <a
-                href="${decryptedUrl}"
-                class="text-green-600 underline text-lg break-words"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ${decryptedUrl}
+              <a href="${url}" class="text-green-600 underline text-lg break-words" target="_blank" rel="noopener noreferrer">
+                ${url}
               </a>`;
+
+            // Auto‑redirect
+            window.location.href = url;
           } catch (err) {
             alert("Incorrect passphrase. Please try again.");
           }
@@ -132,30 +123,21 @@
 
         unlockBtn.addEventListener("click", tryUnlock);
         passInput.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            tryUnlock();
-          }
+          if (e.key === "Enter") tryUnlock();
         });
-
         toggleBtn.addEventListener("click", () => {
-          const isHidden = passInput.type === "password";
-          passInput.type = isHidden ? "text" : "password";
-          toggleBtn.textContent = isHidden ? "🙈" : "👁️";
+          const hidden = passInput.type === "password";
+          passInput.type = hidden ? "text" : "password";
+          toggleBtn.textContent = hidden ? "🙈" : "👁️";
         });
 
-        /**
-         * Decrypt OpenSSL-compatible AES-256-CBC string that was encrypted
-         * with “openssl enc -pbkdf2 … -salt -a”.
-         */
+        // PBKDF2‑AES‑CBC OpenSSL decrypt
         function opensslDecrypt(cipherB64, passphrase, iterations) {
-          const cipherBytes = Uint8Array.from(atob(cipherB64), (c) => c.charCodeAt(0));
-          const isSalted =
-            String.fromCharCode.apply(null, cipherBytes.slice(0, 8)) ===
-            "Salted__";
-          if (!isSalted) throw new Error("Unsupported ciphertext format");
-          const saltBytes = cipherBytes.slice(8, 16);
-          const dataBytes = cipherBytes.slice(16);
-
+          const bytes = Uint8Array.from(atob(cipherB64), (c) => c.charCodeAt(0));
+          if (String.fromCharCode(...bytes.slice(0, 8)) !== "Salted__")
+            throw new Error("Unsupported ciphertext format");
+          const saltBytes = bytes.slice(8, 16);
+          const dataBytes = bytes.slice(16);
           const saltWA = CryptoJS.lib.WordArray.create(saltBytes);
           const keyIv = CryptoJS.PBKDF2(passphrase, saltWA, {
             hasher: CryptoJS.algo.SHA256,
@@ -164,14 +146,12 @@
           });
           const key = CryptoJS.lib.WordArray.create(keyIv.words.slice(0, 8));
           const iv = CryptoJS.lib.WordArray.create(keyIv.words.slice(8, 12));
-
-          const encryptedWA = CryptoJS.lib.WordArray.create(dataBytes);
-          const decryptedWA = CryptoJS.AES.decrypt(
-            { ciphertext: encryptedWA },
+          const decrypted = CryptoJS.AES.decrypt(
+            { ciphertext: CryptoJS.lib.WordArray.create(dataBytes) },
             key,
             { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
           );
-          return decryptedWA.toString(CryptoJS.enc.Utf8);
+          return decrypted.toString(CryptoJS.enc.Utf8);
         }
       })();
     </script>
